@@ -63,6 +63,11 @@ jobs:
           type: http       # <-- نوع HTTP
           subdomain: gaming-nginx-test # <-- یه subdomain جدید
 
+      - name: Run LocalXpose manually
+        run: |
+          echo "🚀 Running LocalXpose manually..."
+          /opt/hostedtoolcache/localxpose/latest/x64/loclx tunnel http --to=80 --subdomain=my-manual-nginx-test
+          echo "LocalXpose command executed. Check the output above for the tunnel URL."
       - name: Keep the job alive
         run: |
           echo "Tunnel should be active. Keeping the job alive..."
