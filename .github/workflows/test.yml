@@ -61,7 +61,6 @@ jobs:
           token: ${{ steps.get_token.outputs.token }}
           port: 80       # <-- پورت 8889 که Nginx روش هست
           type: http       # <-- نوع HTTP
-          subdomain: gaming-nginx-test # <-- یه subdomain جدید
 
       - name: Run LocalXpose manually
         run: |
