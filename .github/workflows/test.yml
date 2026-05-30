@@ -56,34 +56,37 @@ jobs:
           echo "🚀 Starting Pinggy tunnel to localhost:8888 ..."
           echo "NOTE: if tunnel reconnects, URL may change."
 
-          # Pinggy خروجی می‌دهد؛ ما در فایل ذخیره می‌کنیم تا URL را استخراج کنیم
-          # -o StrictHostKeyChecking=no برای اینکه در GH Actions گیر نکند
-          # -R0 یعنی خودش یک پورت/دامنه آزاد می‌دهد
           (ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
               -p 443 -T -R0:localhost:8888 free.pinggy.io | tee pinggy.log) &
 
-          # چند ثانیه صبر می‌کنیم تا URL چاپ شود
-          for i in $(seq 1 30); do
-            if grep -Eo 'https?://[^ ]+' pinggy.log | head -n 1 > pinggy_url.txt; then
+          # صبر تا لینک بیاد
+          for i in $(seq 1 40); do
+            # اول https، اگر نبود http
+            URL="$(grep -Eo 'https://[^ ]+' pinggy.log | head -n 1 || true)"
+            if [ -z "$URL" ]; then
+              URL="$(grep -Eo 'http://[^ ]+' pinggy.log | head -n 1 || true)"
+            fi
+
+            if [ -n "$URL" ]; then
+              echo "$URL" > pinggy_url.txt
               break
             fi
             sleep 1
           done
 
           echo "--------------- PINGGY LOG (head) ---------------"
-          head -n 80 pinggy.log || true
+          head -n 120 pinggy.log || true
           echo "-------------------------------------------------"
 
           if [ ! -s pinggy_url.txt ]; then
             echo "❌ Could not detect Pinggy public URL from logs."
-            echo "Full log so far:"
-            cat pinggy.log || true
             exit 1
           fi
 
-          PINGGY_URL=$(cat pinggy_url.txt | tr -d '\r\n')
+          PINGGY_URL="$(cat pinggy_url.txt | tr -d '\r\n')"
           echo "✅ Pinggy Public URL: $PINGGY_URL"
-          echo "pinggy_url=$PINGGY_URL" >> $GITHUB_OUTPUT
+          echo "pinggy_url=$PINGGY_URL" >> "$GITHUB_OUTPUT"
+
 
       - name: Print connection summary
         run: |
