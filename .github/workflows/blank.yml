@@ -12,275 +12,280 @@ jobs:
       - name: Checkout repository files
         uses: actions/checkout@v4 # چک کردن و دانلود فایل‌های ریپازیتوری
 
-      - name: Create mmm.sh script file
+      - name: Define mmm.sh script content
+        id: define_script # اضافه کردن id برای استفاده از خروجی در مراحل بعدی
         run: |
-          echo "📝 Creating mmm.sh script file..."
-          # اینجا محتوای کامل اسکریپت mmm.sh شما را قرار می‌دهیم
-          cat <<EOF > mmm.sh
-          #!/bin/bash
+          echo "Defining mmm.sh script content..."
+          SCRIPT_CONTENT=$(cat <<'SCRIPT_END'
+#!/bin/bash
 
-          # === تنظیمات ===
-          XRAY_BIN="/usr/local/bin/xray"        # مسیر نهایی نصب Xray core
-          CONFIG_FILE="/etc/xray/config.json"   # مسیر فایل کانفیگ
-          LOG_DIR="/var/log/xray"               # مسیر لاگ‌ها
-          SERVICE_NAME="xray"                   # نام سرویس systemd
+# === تنظیمات ===
+XRAY_BIN="/usr/local/bin/xray"        # مسیر نهایی نصب Xray core
+CONFIG_FILE="/etc/xray/config.json"   # مسیر فایل کانفیگ
+LOG_DIR="/var/log/xray"               # مسیر لاگ‌ها
+SERVICE_NAME="xray"                   # نام سرویس systemd
 
-          # === محتوای فایل کانفیگ ===
-          CONFIG_JSON='{
-            "log": {
-              "loglevel": "warning"
-            },
-            "routing": {
-              "domainStrategy": "AsIs",
-              "rules": []
-            },
-            "inbounds": [
-              {
-                "port": 8888,
-                "protocol": "vless",
-                "settings": {
-                  "clients": [
-                    {
-                      "id": "18f9720c-c68e-4a6c-940a-5c3f350c3d9a",
-                      "level": 0
-                    }
-                  ],
-                  "decryption": "none"
-                },
-                "sniffing": {
-                  "enabled": false
-                },
-                "streamSettings": {
-                  "network": "ws",
-                  "security": "none",
-                  "wsSettings": {
-                    "path": "/fast-game"
-                  },
-                  "sockopt": {
-                    "tcpFastOpen": true,
-                    "tcpNoDelay": true,
-                    "mark": 255
-                  }
-                }
-              },
-              {
-                "port": 8889,
-                "protocol": "vless",
-                "settings": {
-                  "clients": [
-                    {
-                      "id": "18f9720c-c68e-4a6c-940a-5c3f350c3d9a",
-                      "level": 0
-                    }
-                  ],
-                  "decryption": "none"
-                },
-                "sniffing": {
-                  "enabled": false
-                },
-                "streamSettings": {
-                  "network": "grpc",
-                  "security": "none",
-                  "grpcSettings": {
-                    "serviceName": "fast-game"
-                  },
-                  "sockopt": {
-                    "tcpFastOpen": true,
-                    "tcpNoDelay": true,
-                    "mark": 255
-                  }
-                }
-              }
-            ],
-            "outbounds": [
-              {
-                "protocol": "freedom",
-                "settings": {
-                  "domainStrategy": "UseIP"
-                },
-                "streamSettings": {
-                  "sockopt": {
-                    "tcpFastOpen": true,
-                    "tcpNoDelay": true
-                  }
-                }
-              }
-            ],
-            "policy": {
-              "levels": {
-                "0": {
-                  "handshake": 1,
-                  "connIdle": 60,
-                  "uplinkOnly": 0,
-                  "downlinkOnly": 0,
-                  "bufferSize": 2
-                }
-              },
-              "system": {
-                "statsInboundUplink": false,
-                "statsInboundDownlink": false
-              }
-            }
-          }'
-
-          # === تابع برای نصب وابستگی‌ها ===
-          install_dependencies() {
-              echo "[*] شروع نصب وابستگی‌ها..."
-              echo "[*] مرحله 1/4: آپدیت لیست پکیج‌ها (apt update)..."
-              if sudo apt update -y; then
-                  echo "[+] لیست پکیج‌ها با موفقیت آپدیت شد."
-              else
-                  echo "[!] خطا در آپدیت لیست پکیج‌ها. لطفاً دستور 'sudo apt update' را دستی اجرا کنید."
-                  exit 1
-              fi
-              echo "[*] مرحله 2/4: نصب بسته‌های wget, unzip, systemd..."
-              if sudo apt install -y wget unzip systemd; then
-                  echo "[+] بسته‌های wget, unzip, systemd با موفقیت نصب شدند."
-              else
-                  echo "[!] خطا در نصب بسته‌های مورد نیاز. لطفاً دستور 'sudo apt install -y wget unzip systemd' را دستی اجرا کنید."
-                  exit 1
-              fi
-              echo "[*] مرحله 3/4: بررسی دسترسی به curl (برای دانلود Xray)..."
-              if ! command -v curl &> /dev/null; then
-                  echo "[!] بسته curl یافت نشد. در حال نصب..."
-                  if sudo apt install -y curl; then
-                      echo "[+] بسته curl با موفقیت نصب شد."
-                  else
-                      echo "[!] خطا در نصب بسته curl."
-                      exit 1
-                  fi
-              else
-                  echo "[+] بسته curl از قبل نصب است."
-              fi
-              echo "[+] تمام وابستگی‌های ضروری نصب یا تایید شدند."
+# === محتوای فایل کانفیگ ===
+CONFIG_JSON='{
+  "log": {
+    "loglevel": "warning"
+  },
+  "routing": {
+    "domainStrategy": "AsIs",
+    "rules": []
+  },
+  "inbounds": [
+    {
+      "port": 8888,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "18f9720c-c68e-4a6c-940a-5c3f350c3d9a",
+            "level": 0
           }
-
-          # === تابع برای نصب Xray Core ===
-          install_xray() {
-              echo "[*] مرحله 4/4: دانلود و نصب Xray Core..."
-              ARCH=$(uname -m)
-              case $ARCH in
-                  x86_64) XRAY_ARCH="64" ;;
-                  amd64) XRAY_ARCH="64" ;;
-                  arm64) XRAY_ARCH="arm64" ;;
-                  aarch64) XRAY_ARCH="arm64" ;;
-                  *) echo "[!] معماری $ARCH پشتیبانی نمی‌شود."; exit 1 ;;
-              esac
-              DOWNLOAD_URL="https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-${XRAY_ARCH}.zip"
-              echo "[*] دانلود Xray Core از: $DOWNLOAD_URL"
-              TEMP_DIR="/tmp/xray_install_$$"
-              mkdir -p "$TEMP_DIR"
-              if curl -sL "$DOWNLOAD_URL" | unzip -q -o -d "$TEMP_DIR"; then
-                  echo "[+] دانلود و استخراج با موفقیت انجام شد."
-              else
-                  echo "[!] خطا در دانلود یا استخراج Xray Core."
-                  rm -rf "$TEMP_DIR"
-                  exit 1
-              fi
-              if [ -f "$TEMP_DIR/xray" ]; then
-                  sudo mv "$TEMP_DIR/xray" "$XRAY_BIN"
-                  sudo chmod +x "$XRAY_BIN"
-                  echo "[+] Xray Core در $XRAY_BIN نصب شد و قابل اجرا است."
-              else
-                  echo "[!] فایل اجرایی 'xray' در $TEMP_DIR یافت نشد."
-                  rm -rf "$TEMP_DIR"
-                  exit 1
-              fi
-              rm -rf "$TEMP_DIR"
-              if ! command -v "$XRAY_BIN" &> /dev/null; then
-                  echo "[!] نصب Xray Core ناموفق بود. لطفاً مسیر $XRAY_BIN را بررسی کنید."
-                  exit 1
-              fi
+        ],
+        "decryption": "none"
+      },
+      "sniffing": {
+        "enabled": false
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "none",
+        "wsSettings": {
+          "path": "/fast-game"
+        },
+        "sockopt": {
+          "tcpFastOpen": true,
+          "tcpNoDelay": true,
+          "mark": 255
+        }
+      }
+    },
+    {
+      "port": 8889,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "18f9720c-c68e-4a6c-940a-5c3f350c3d9a",
+            "level": 0
           }
+        ],
+        "decryption": "none"
+      },
+      "sniffing": {
+        "enabled": false
+      },
+      "streamSettings": {
+        "network": "grpc",
+        "security": "none",
+        "grpcSettings": {
+          "serviceName": "fast-game"
+        },
+        "sockopt": {
+          "tcpFastOpen": true,
+          "tcpNoDelay": true,
+          "mark": 255
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "settings": {
+        "domainStrategy": "UseIP"
+      },
+      "streamSettings": {
+        "sockopt": {
+          "tcpFastOpen": true,
+          "tcpNoDelay": true
+        }
+      }
+    }
+  ],
+  "policy": {
+    "levels": {
+      "0": {
+        "handshake": 1,
+        "connIdle": 60,
+        "uplinkOnly": 0,
+        "downlinkOnly": 0,
+        "bufferSize": 2
+      }
+    },
+    "system": {
+      "statsInboundUplink": false,
+      "statsInboundDownlink": false
+    }
+  }
+}'
 
-          # === تابع برای تنظیم systemd ===
-          setup_systemd() {
-              echo "[*] تنظیم سرویس systemd برای $SERVICE_NAME..."
-              SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
-              sudo tee "$SERVICE_FILE" > /dev/null <<EOF
-          [Unit]
-          Description=Xray Service (VLESS + WS/gRPC)
-          After=network.target
+# === تابع برای نصب وابستگی‌ها ===
+install_dependencies() {
+    echo "[*] شروع نصب وابستگی‌ها..."
+    echo "[*] مرحله 1/4: آپدیت لیست پکیج‌ها (apt update)..."
+    if sudo apt update -y; then
+        echo "[+] لیست پکیج‌ها با موفقیت آپدیت شد."
+    else
+        echo "[!] خطا در آپدیت لیست پکیج‌ها. لطفاً دستور 'sudo apt update' را دستی اجرا کنید."
+        exit 1
+    fi
+    echo "[*] مرحله 2/4: نصب بسته‌های wget, unzip, systemd..."
+    if sudo apt install -y wget unzip systemd; then
+        echo "[+] بسته‌های wget, unzip, systemd با موفقیت نصب شدند."
+    else
+        echo "[!] خطا در نصب بسته‌های مورد نیاز. لطفاً دستور 'sudo apt install -y wget unzip systemd' را دستی اجرا کنید."
+        exit 1
+    fi
+    echo "[*] مرحله 3/4: بررسی دسترسی به curl (برای دانلود Xray)..."
+    if ! command -v curl &> /dev/null; then
+        echo "[!] بسته curl یافت نشد. در حال نصب..."
+        if sudo apt install -y curl; then
+            echo "[+] بسته curl با موفقیت نصب شد."
+        else
+            echo "[!] خطا در نصب بسته curl."
+            exit 1
+        fi
+    else
+        echo "[+] بسته curl از قبل نصب است."
+    fi
+    echo "[+] تمام وابستگی‌های ضروری نصب یا تایید شدند."
+}
 
-          [Service]
-          User=root
-          Group=root
-          Type=simple
-          Restart=on-failure
-          RestartSec=5s
-          ExecStart=$XRAY_BIN -config $CONFIG_FILE
-          ExecStop=/bin/kill -SIGTERM \$MAINPID
+# === تابع برای نصب Xray Core ===
+install_xray() {
+    echo "[*] مرحله 4/4: دانلود و نصب Xray Core..."
+    ARCH=$(uname -m)
+    case $ARCH in
+        x86_64) XRAY_ARCH="64" ;;
+        amd64) XRAY_ARCH="64" ;;
+        arm64) XRAY_ARCH="arm64" ;;
+        aarch64) XRAY_ARCH="arm64" ;;
+        *) echo "[!] معماری $ARCH پشتیبانی نمی‌شود."; exit 1 ;;
+    esac
+    DOWNLOAD_URL="https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-${XRAY_ARCH}.zip"
+    echo "[*] دانلود Xray Core از: $DOWNLOAD_URL"
+    TEMP_DIR="/tmp/xray_install_$$"
+    mkdir -p "$TEMP_DIR"
+    if curl -sL "$DOWNLOAD_URL" | unzip -q -o -d "$TEMP_DIR"; then
+        echo "[+] دانلود و استخراج با موفقیت انجام شد."
+    else
+        echo "[!] خطا در دانلود یا استخراج Xray Core."
+        rm -rf "$TEMP_DIR"
+        exit 1
+    fi
+    if [ -f "$TEMP_DIR/xray" ]; then
+        sudo mv "$TEMP_DIR/xray" "$XRAY_BIN"
+        sudo chmod +x "$XRAY_BIN"
+        echo "[+] Xray Core در $XRAY_BIN نصب شد و قابل اجرا است."
+    else
+        echo "[!] فایل اجرایی 'xray' در $TEMP_DIR یافت نشد."
+        rm -rf "$TEMP_DIR"
+        exit 1
+    fi
+    rm -rf "$TEMP_DIR"
+    if ! command -v "$XRAY_BIN" &> /dev/null; then
+        echo "[!] نصب Xray Core ناموفق بود. لطفاً مسیر $XRAY_BIN را بررسی کنید."
+        exit 1
+    fi
+}
 
-          [Install]
-          WantedBy=multi-user.target
-          EOF
-              sudo systemctl daemon-reload
-              sudo systemctl enable $SERVICE_NAME
-              echo "[+] سرویس systemd برای $SERVICE_NAME تنظیم و فعال شد."
-          }
+# === تابع برای تنظیم systemd ===
+setup_systemd() {
+    echo "[*] تنظیم سرویس systemd برای $SERVICE_NAME..."
+    SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
+    sudo tee "$SERVICE_FILE" > /dev/null <<EOF
+[Unit]
+Description=Xray Service (VLESS + WS/gRPC)
+After=network.target
 
-          # === اجرای اصلی اسکریپت ===
-          echo "####################################################"
-          echo "#        اسکریپت نصب و راه‌اندازی Xray            #"
-          echo "####################################################"
-          install_dependencies
-          if ! command -v "$XRAY_BIN" &> /dev/null || ! "$XRAY_BIN" version &> /dev/null; then
-              echo "[!] Xray Core یا یافت نشد یا نسخه آن نامعتبر است. در حال نصب/بروزرسانی..."
-              install_xray
-          else
-              echo "[*] Xray Core از قبل در $XRAY_BIN موجود است. از نسخه فعلی استفاده می‌شود."
-          fi
-          sudo mkdir -p \$(dirname $CONFIG_FILE)
-          sudo mkdir -p $LOG_DIR
-          sudo chmod 755 $LOG_DIR
-          echo "[+] دایرکتوری‌ها آماده شدند."
-          echo "[*] نوشتن فایل کانفیگ در $CONFIG_FILE..."
-          echo "\$CONFIG_JSON" | sudo tee "$CONFIG_FILE" > /dev/null
-          if [ \$? -ne 0 ]; then
-              echo "[!] خطا در نوشتن فایل کانفیگ $CONFIG_FILE."
-              exit 1
-          fi
-          echo "[+] فایل کانفیگ $CONFIG_FILE با موفقیت نوشته شد."
-          setup_systemd
-          echo "[*] راه‌اندازی سرویس $SERVICE_NAME..."
-          if sudo systemctl start \$SERVICE_NAME; then
-              echo "[+] سرویس $SERVICE_NAME با موفقیت راه‌اندازی شد."
-              echo ""
-              echo "========================================================"
-              echo " تنظیمات کامل شد! 🎉"
-              echo "========================================================"
-              echo ""
-              echo "[*] وضعیت سرویس را با دستور زیر بررسی کنید:"
-              echo "    sudo systemctl status \$SERVICE_NAME"
-              echo ""
-              echo "[*] برای مشاهده لاگ‌های زنده Xray:"
-              echo "    sudo journalctl -u \$SERVICE_NAME -f"
-              echo ""
-              echo "[*] دستورات مفید دیگر:"
-              echo "    sudo systemctl stop \$SERVICE_NAME    # توقف سرویس"
-              echo "    sudo systemctl restart \$SERVICE_NAME # ری‌استارت سرویس"
-              echo "    sudo systemctl disable \$SERVICE_NAME # غیرفعال کردن اجرای خودکار هنگام بوت"
-              echo "    sudo systemctl enable \$SERVICE_NAME  # فعال کردن اجرای خودکار هنگام بوت"
-          else
-              echo "[!] خطا در راه‌اندازی سرویس $SERVICE_NAME."
-              echo "[!] لطفاً وضعیت سرویس را با دستور 'sudo systemctl status \$SERVICE_NAME' و لاگ‌ها را با 'sudo journalctl -u \$SERVICE_NAME -f' بررسی کنید."
-              exit 1
-          fi
-          exit 0
-          EOF
+[Service]
+User=root
+Group=root
+Type=simple
+Restart=on-failure
+RestartSec=5s
+ExecStart=$XRAY_BIN -config $CONFIG_FILE
+ExecStop=/bin/kill -SIGTERM \$MAINPID
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    sudo systemctl daemon-reload
+    sudo systemctl enable $SERVICE_NAME
+    echo "[+] سرویس systemd برای $SERVICE_NAME تنظیم و فعال شد."
+}
+
+# === اجرای اصلی اسکریپت ===
+echo "####################################################"
+echo "#        اسکریپت نصب و راه‌اندازی Xray            #"
+echo "####################################################"
+install_dependencies
+if ! command -v "$XRAY_BIN" &> /dev/null || ! "$XRAY_BIN" version &> /dev/null; then
+    echo "[!] Xray Core یا یافت نشد یا نسخه آن نامعتبر است. در حال نصب/بروزرسانی..."
+    install_xray
+else
+    echo "[*] Xray Core از قبل در $XRAY_BIN موجود است. از نسخه فعلی استفاده می‌شود."
+fi
+sudo mkdir -p $(dirname $CONFIG_FILE)
+sudo mkdir -p $LOG_DIR
+sudo chmod 755 $LOG_DIR
+echo "[+] دایرکتوری‌ها آماده شدند."
+echo "[*] نوشتن فایل کانفیگ در $CONFIG_FILE..."
+echo "\$CONFIG_JSON" | sudo tee "$CONFIG_FILE" > /dev/null
+if [ \$? -ne 0 ]; then
+    echo "[!] خطا در نوشتن فایل کانفیگ $CONFIG_FILE."
+    exit 1
+fi
+echo "[+] فایل کانفیگ $CONFIG_FILE با موفقیت نوشته شد."
+setup_systemd
+echo "[*] راه‌اندازی سرویس $SERVICE_NAME..."
+if sudo systemctl start \$SERVICE_NAME; then
+    echo "[+] سرویس $SERVICE_NAME با موفقیت راه‌اندازی شد."
+    echo ""
+    echo "========================================================"
+    echo " تنظیمات کامل شد! 🎉"
+    echo "========================================================"
+    echo ""
+    echo "[*] وضعیت سرویس را با دستور زیر بررسی کنید:"
+    echo "    sudo systemctl status \$SERVICE_NAME"
+    echo ""
+    echo "[*] برای مشاهده لاگ‌های زنده Xray:"
+    echo "    sudo journalctl -u \$SERVICE_NAME -f"
+    echo ""
+    echo "[*] دستورات مفید دیگر:"
+    echo "    sudo systemctl stop \$SERVICE_NAME    # توقف سرویس"
+    echo "    sudo systemctl restart \$SERVICE_NAME # ری‌استارت سرویس"
+    echo "    sudo systemctl disable \$SERVICE_NAME # غیرفعال کردن اجرای خودکار هنگام بوت"
+    echo "    sudo systemctl enable \$SERVICE_NAME  # فعال کردن اجرای خودکار هنگام بوت"
+else
+    echo "[!] خطا در راه‌اندازی سرویس $SERVICE_NAME."
+    echo "[!] لطفاً وضعیت سرویس را با دستور 'sudo systemctl status \$SERVICE_NAME' و لاگ‌ها را با 'sudo journalctl -u \$SERVICE_NAME -f' بررسی کنید."
+    exit 1
+fi
+exit 0
+SCRIPT_END
+          # خروجی اسکریپت را در یک فایل ذخیره می‌کنیم
+          echo "$SCRIPT_CONTENT" > mmm.sh
           chmod +x mmm.sh
-          echo "✅ mmm.sh created and made executable."
+          echo "✅ mmm.sh created successfully."
+          # برای اطمینان، محتوای فایل ایجاد شده را نمایش می‌دهیم (اختیاری)
+          echo "--- Content of mmm.sh ---"
+          cat mmm.sh
+          echo "--- End of mmm.sh ---"
+        # اضافه کردن خروجی به context برای مرحله بعدی
+        echo "::set-output name=script_content::$(echo "$SCRIPT_CONTENT" | base64)"
 
       - name: Execute mmm.sh script
         run: |
           echo "🚀 Executing mmm.sh to setup and run Xray..."
+          # استفاده از sudo برای اجرای اسکریپت در صورت نیاز
           sudo ./mmm.sh
-          # از آنجایی که mmm.sh خود سرویس را راه‌اندازی می‌کند و در پس‌زمینه نگه می‌دارد،
-          # ما اینجا فقط اجرای اولیه را انجام می‌دهیم.
-          # زمان اجرای Xray توسط systemd مدیریت می‌شود.
-          # ما یک sleep کوتاه برای اطمینان از راه‌اندازی سرویس اضافه می‌کنیم.
           echo "   Waiting a bit for Xray service to stabilize..."
-          sleep 10 
+          sleep 10
 
       - name: Get Runner IP and confirm tunnel status
         run: |
@@ -302,38 +307,50 @@ jobs:
           echo "⏳ Keeping the job alive for the remaining time..."
           # محاسبه زمان باقی‌مانده تا اتمام workflow (120 دقیقه)
           JOB_TIMEOUT_MINUTES=120
-          ELAPSED_MINUTES=$(( $(date +%s) - ${{ github.run_started_at.to_seconds }} )) # این بخش ممکن است نیاز به تنظیم دقیق تر داشته باشد
-          # یا ساده تر:
-          ELAPSED_SECONDS=$(date +%s)
-          WORKFLOW_START_EPOCH=$(date -d "${{ github.run_started_at }}" +%s)
-          ELAPSED_RUN_TIME=$((ELAPSED_SECONDS - WORKFLOW_START_EPOCH))
-          REMAINING_SECONDS=$((JOB_TIMEOUT_MINUTES * 60 - ELAPSED_RUN_TIME))
+          # استفاده از زمان شروع اجرا برای محاسبه زمان باقی‌مانده
+          # این زمان با فرمت ISO 8601 است
+          START_TIME_STR="${{ github.run_started_at }}"
+          # تبدیل زمان شروع به ثانیه های Epoch
+          START_TIME_EPOCH=$(date -d "$START_TIME_STR" +%s)
+          CURRENT_TIME_EPOCH=$(date +%s)
+          ELAPSED_SECONDS=$((CURRENT_TIME_EPOCH - START_TIME_EPOCH))
+          REMAINING_SECONDS=$((JOB_TIMEOUT_MINUTES * 60 - ELAPSED_SECONDS))
 
-          if [ $REMAINING_SECONDS -gt 0 ]; then
+          if [ $REMAINING_SECONDS -gt 10 ]; then # اطمینان از اینکه حداقل 10 ثانیه باقی مانده
             echo "   Sleeping for $REMAINING_SECONDS seconds..."
             sleep $REMAINING_SECONDS
           else
-            echo "   Workflow has already exceeded its time limit or is about to end."
+            echo "   Workflow is about to end. No significant sleep needed."
           fi
 
       - name: Stop Xray service before finishing
         if: always() # این مرحله همیشه اجرا می‌شود
         run: |
           echo "🛑 Stopping Xray service..."
-          sudo systemctl stop xray || echo "   Xray service was not running or already stopped."
-          echo "   Xray service stopped."
+          # از systemctl stop برای توقف سرویس استفاده می‌کنیم.
+          # اگر سرویس از قبل متوقف شده باشد یا اجرا نشده باشد، خطا نمی‌دهد.
+          sudo systemctl stop xray || echo "   Xray service was not running or already stopped. Continuing cleanup."
+          echo "   Xray service stop command issued."
 
       - name: Cleanup
         if: always()
         run: |
-          echo "🧹 Cleaning up..."
-          # پاک کردن فایل کانفیگ و سرویس systemd
+          echo "🧹 Cleaning up temporary files and systemd service..."
+          # پاک کردن فایل کانفیگ
           if [ -f "/etc/xray/config.json" ]; then
             sudo rm -f "/etc/xray/config.json"
             echo "   Removed temporary config file: /etc/xray/config.json"
           fi
+          # غیرفعال کردن و حذف سرویس systemd
+          # دستور disable --now هم سرویس را غیرفعال می‌کند و هم متوقف می‌کند
+          if systemctl list-unit-files | grep -q "xray.service"; then
+              sudo systemctl disable xray --now || echo "   Failed to disable/stop xray service during cleanup. It might have already been stopped."
+              echo "   Disabled and stopped xray service."
+          else
+              echo "   xray.service not found in systemd units, skipping disable/stop."
+          fi
+          # حذف فایل سرویس systemd
           if [ -f "/etc/systemd/system/xray.service" ]; then
-            sudo systemctl disable xray --now || echo "   Failed to disable/stop xray service during cleanup."
             sudo rm -f "/etc/systemd/system/xray.service"
             sudo systemctl daemon-reload
             echo "   Removed xray.service file and reloaded systemd."
