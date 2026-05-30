@@ -53,6 +53,8 @@ jobs:
           token: ${{ steps.get_token.outputs.token }} 
           # پورت Xray که قراره تونل بشه
           port: 8888
+
+          type: tcp 
           # دامنه دلخواه (می‌تونی یه اسم بذاری، اکشن خودش یه دامنه درست می‌کنه)
           subdomain: pubg # این رو هم به دلخواه تغییر بده
 
