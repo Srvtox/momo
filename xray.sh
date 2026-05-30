@@ -107,5 +107,29 @@ echo "🚀 Starting Xray with config file: $CONFIG_FILE..."
 "$XRAY_EXECUTABLE" run -config "$CONFIG_FILE" &
 
 # چند ثانیه صبر برای اطمینان از راه‌اندازی
-sleep 5
+sleep 10
 echo "Xray should be running now."
+
+# --- ۶. بررسی وضعیت Xray ---
+echo "🔍 Checking Xray status..."
+# دستور ss رو اجرا می‌کنیم و دنبال پورت‌های 8888 و 8889 می‌گردیم
+# L: نمایش لیست سوکت‌ها، N: نمایش آدرس‌ها به صورت عددی (IP:Port)، t: TCP، u: UDP
+# -l: فقط سوکت‌های در حال شنود (listening) رو نشون بده
+# --tcp: فقط سوکت‌های TCP رو نشون بده
+# --numeric: از تبدیل نام IP به نام دامنه خودداری کن (برای سرعت)
+# grep 8888 یا grep 8889: فقط خطوطی که حاوی شماره پورت مورد نظر ما هستند رو نشون بده
+
+echo "--- Xray Inbound Ports ---"
+sudo ss -ltn --numeric | grep -E ':8888|:8889' || echo "Xray ports 8888 or 8889 not found listening."
+
+echo "--- Xray Process Check ---"
+# چک می‌کنیم که پروسه xray در حال اجرا باشه
+if pgrep -f "$XRAY_EXECUTABLE" > /dev/null; then
+    echo "✅ Xray process is running."
+else
+    echo "❌ Xray process is NOT running. Check logs for errors."
+fi
+echo "--------------------------"
+
+# بقیه دستورات مثل sleep 900 و ...
+
