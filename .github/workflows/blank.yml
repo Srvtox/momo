@@ -57,4 +57,12 @@ jobs:
           # این مرحله رو میذارم که رانر سریع بسته نشه و بتونی تست کنی
           # هشدار: گیت‌هاب ممکنه بعد از مدتی رانر رو به خاطر بیکار بودن ببنده
           echo "Tunnel will be active for 15 minutes. Go wild!"
-          sleep 900
+          TOTAL_TIME=$((5 * 60 * 60))   # 5 ساعت به ثانیه
+          INTERVAL=300                 # 5 دقیقه به ثانیه
+          elapsed=0
+          while [ $elapsed -lt $TOTAL_TIME ]; do
+             echo "Tunnel is alive and kicking! ⏳ Elapsed minutes: $((elapsed / 60)) / 300"
+             sleep $INTERVAL
+          elapsed=$((elapsed + INTERVAL))
+          done
+
