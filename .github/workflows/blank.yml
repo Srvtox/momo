@@ -32,36 +32,46 @@ jobs:
       - name: Execute shell script
         run: chmod +x xray.sh && ./xray.sh
 
-      - name: Install and Run Cloudflare Tunnel
+      - name: Install and Login LocalXpose
         run: |
-           # دانلود کردن کلودفلر (نسخه لینوکس)
-           wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-           sudo dpkg -i cloudflared-linux-amd64.deb
+          echo "📦 Installing LocalXpose..."
+          wget -q https://api.localxpose.io/api/v1/download/linux/amd64 -O localxpose.tar.gz
+          tar -xzf localxpose.tar.gz -C /usr/local/bin/
+          rm localxpose.tar.gz
+          echo "✅ LocalXpose installed."
 
-           # اجرای تونل به صورت موقت و استخراج URL
-           # این قسمت یکم جادویی کار می‌کنه چون خروجی رو توی لاگ نشون میده
-            echo "Starting Cloudflare Tunnel..."
-            cloudflared tunnel --url http://localhost:8888 --logfile tunnel.log &
-          
-           # یه چند ثانیه صبر کنیم که کلودفلر بتونه با دنیا ارتباط برقرار کنه
-           sleep 10
-          
-           # حالا بریم دنبال اون آدرس خوشگله بگردیم که به .trycloudflare.com ختم میشه
-           TUNNEL_URL=$(grep -o 'https://[-a-z0-9.]*\.trycloudflare\.com' tunnel.log | head -n 1)
-          
-           echo "------------------------------------------------"
-           echo "بفرما! آدرس تونل شما با احترام تقدیم می‌شود:"
-           echo "URL: $TUNNEL_URL"
-           echo "------------------------------------------------"
+          echo "🔑 Logging in to LocalXpose..."
+          # استفاده از توکن دریافتی از مرحله قبل
+          echo "$LOCALXPOSE_TOKEN_SECRET" | /usr/local/bin/localxpose login --token -
+          echo "✅ Logged in to LocalXpose."
+        env:
+          LOCALXPOSE_TOKEN_SECRET: ${{ steps.get_token.outputs.token }}
 
+      # --- مرحله ۴: اجرای تونل LocalXpose برای Xray ---
+      - name: Run LocalXpose Tunnel for Xray
+        run: |
+          echo "🚀 Starting LocalXpose tunnel for VLESS TCP (port 8889)..."
+          # !!! حتماً your-game-domain.com رو به دامنه دلخواه یا تستی خودت تغییر بده !!!
+          # اگه دامنه نداری، LocalXpose یه دامنه موقت بهت می‌ده.
+          TUNNEL_COMMAND="/usr/local/bin/localxpose tunnel tcp --hostname your-game-domain.com --to 127.0.0.1:8889"
+          echo "Executing: $TUNNEL_COMMAND"
+          
+          # اجرای تونل در پس‌زمینه
+          $TUNNEL_COMMAND &
 
-         
-           TOTAL_TIME=$((5 * 60 * 60))   # 5 ساعت به ثانیه
-           INTERVAL=300                 # 5 دقیقه به ثانیه
-           elapsed=0
-           while [ $elapsed -lt $TOTAL_TIME ]; do
-             echo "Tunnel is alive and kicking! ⏳ Elapsed minutes: $((elapsed / 60)) / 300"
-             sleep $INTERVAL
-           elapsed=$((elapsed + INTERVAL))
-           done
+          # صبر برای اینکه تونل برقرار بشه و URL نمایش داده بشه
+          sleep 15 
+
+          # تلاش برای پیدا کردن URL تونل (این قسمت ممکنه دقیق نباشه چون LocalXpose URL رو مستقیم چاپ نمی‌کنه)
+          # بهترین راه اینه که خودت آدرس رو چک کنی یا از یک روش دیگه برای گرفتن URL استفاده کنی.
+          # ولی فعلا سعی می‌کنیم یه چیزی نمایش بدیم:
+          echo "--------------------------------------------------------------"
+          echo "Tunnel command executed. Check your LocalXpose dashboard or"
+          echo "try accessing your chosen hostname (e.g., your-game-domain.com.auto.trylocalxpose.com if auto-assigned)."
+          echo "The tunnel targets 127.0.0.1:8889 (Xray VLESS TCP)."
+          echo "--------------------------------------------------------------"
+
+          # اجرای نامحدود برای نگه داشتن تسک (مثل workflow قبلی)
+          echo "Keeping the job alive to maintain the tunnel..."
+          while true; do sleep 3600; done
 
