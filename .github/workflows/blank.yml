@@ -1,45 +1,341 @@
-name: Cloudflare Temporary Tunnel Test
+name: Temporary Xray Tunnel from mmm.sh Script
 
-on: 
-  workflow_dispatch: # دستی اجراش کن که سورپرایز نشی
+on:
+  workflow_dispatch: # اجازه می‌دهد workflow به صورت دستی اجرا شود
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  setup_and_run_xray:
+    runs-on: ubuntu-latest # محیط اجرای runner
+    timeout-minutes: 120 # حداکثر زمان اجرای workflow (120 دقیقه)
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Checkout repository files
+        uses: actions/checkout@v4 # چک کردن و دانلود فایل‌های ریپازیتوری
 
-      - name: Start a dummy local service
+      - name: Create mmm.sh script file
         run: |
-          # اینجا یک سرور پایتونی ساده روی پورت 8080 میاریم بالا که تونل بهش وصل شه
-          echo "<h1>سلام از توی شکم گیت‌هاب!</h1>" > index.html
-          python3 -m http.server 8080 & 
-          echo "Local server started on port 8080."
+          echo "📝 Creating mmm.sh script file..."
+          # اینجا محتوای کامل اسکریپت mmm.sh شما را قرار می‌دهیم
+          cat <<EOF > mmm.sh
+          #!/bin/bash
 
-      - name: Install and Run Cloudflare Tunnel
+          # === تنظیمات ===
+          XRAY_BIN="/usr/local/bin/xray"        # مسیر نهایی نصب Xray core
+          CONFIG_FILE="/etc/xray/config.json"   # مسیر فایل کانفیگ
+          LOG_DIR="/var/log/xray"               # مسیر لاگ‌ها
+          SERVICE_NAME="xray"                   # نام سرویس systemd
+
+          # === محتوای فایل کانفیگ ===
+          CONFIG_JSON='{
+            "log": {
+              "loglevel": "warning"
+            },
+            "routing": {
+              "domainStrategy": "AsIs",
+              "rules": []
+            },
+            "inbounds": [
+              {
+                "port": 8888,
+                "protocol": "vless",
+                "settings": {
+                  "clients": [
+                    {
+                      "id": "18f9720c-c68e-4a6c-940a-5c3f350c3d9a",
+                      "level": 0
+                    }
+                  ],
+                  "decryption": "none"
+                },
+                "sniffing": {
+                  "enabled": false
+                },
+                "streamSettings": {
+                  "network": "ws",
+                  "security": "none",
+                  "wsSettings": {
+                    "path": "/fast-game"
+                  },
+                  "sockopt": {
+                    "tcpFastOpen": true,
+                    "tcpNoDelay": true,
+                    "mark": 255
+                  }
+                }
+              },
+              {
+                "port": 8889,
+                "protocol": "vless",
+                "settings": {
+                  "clients": [
+                    {
+                      "id": "18f9720c-c68e-4a6c-940a-5c3f350c3d9a",
+                      "level": 0
+                    }
+                  ],
+                  "decryption": "none"
+                },
+                "sniffing": {
+                  "enabled": false
+                },
+                "streamSettings": {
+                  "network": "grpc",
+                  "security": "none",
+                  "grpcSettings": {
+                    "serviceName": "fast-game"
+                  },
+                  "sockopt": {
+                    "tcpFastOpen": true,
+                    "tcpNoDelay": true,
+                    "mark": 255
+                  }
+                }
+              }
+            ],
+            "outbounds": [
+              {
+                "protocol": "freedom",
+                "settings": {
+                  "domainStrategy": "UseIP"
+                },
+                "streamSettings": {
+                  "sockopt": {
+                    "tcpFastOpen": true,
+                    "tcpNoDelay": true
+                  }
+                }
+              }
+            ],
+            "policy": {
+              "levels": {
+                "0": {
+                  "handshake": 1,
+                  "connIdle": 60,
+                  "uplinkOnly": 0,
+                  "downlinkOnly": 0,
+                  "bufferSize": 2
+                }
+              },
+              "system": {
+                "statsInboundUplink": false,
+                "statsInboundDownlink": false
+              }
+            }
+          }'
+
+          # === تابع برای نصب وابستگی‌ها ===
+          install_dependencies() {
+              echo "[*] شروع نصب وابستگی‌ها..."
+              echo "[*] مرحله 1/4: آپدیت لیست پکیج‌ها (apt update)..."
+              if sudo apt update -y; then
+                  echo "[+] لیست پکیج‌ها با موفقیت آپدیت شد."
+              else
+                  echo "[!] خطا در آپدیت لیست پکیج‌ها. لطفاً دستور 'sudo apt update' را دستی اجرا کنید."
+                  exit 1
+              fi
+              echo "[*] مرحله 2/4: نصب بسته‌های wget, unzip, systemd..."
+              if sudo apt install -y wget unzip systemd; then
+                  echo "[+] بسته‌های wget, unzip, systemd با موفقیت نصب شدند."
+              else
+                  echo "[!] خطا در نصب بسته‌های مورد نیاز. لطفاً دستور 'sudo apt install -y wget unzip systemd' را دستی اجرا کنید."
+                  exit 1
+              fi
+              echo "[*] مرحله 3/4: بررسی دسترسی به curl (برای دانلود Xray)..."
+              if ! command -v curl &> /dev/null; then
+                  echo "[!] بسته curl یافت نشد. در حال نصب..."
+                  if sudo apt install -y curl; then
+                      echo "[+] بسته curl با موفقیت نصب شد."
+                  else
+                      echo "[!] خطا در نصب بسته curl."
+                      exit 1
+                  fi
+              else
+                  echo "[+] بسته curl از قبل نصب است."
+              fi
+              echo "[+] تمام وابستگی‌های ضروری نصب یا تایید شدند."
+          }
+
+          # === تابع برای نصب Xray Core ===
+          install_xray() {
+              echo "[*] مرحله 4/4: دانلود و نصب Xray Core..."
+              ARCH=$(uname -m)
+              case $ARCH in
+                  x86_64) XRAY_ARCH="64" ;;
+                  amd64) XRAY_ARCH="64" ;;
+                  arm64) XRAY_ARCH="arm64" ;;
+                  aarch64) XRAY_ARCH="arm64" ;;
+                  *) echo "[!] معماری $ARCH پشتیبانی نمی‌شود."; exit 1 ;;
+              esac
+              DOWNLOAD_URL="https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-${XRAY_ARCH}.zip"
+              echo "[*] دانلود Xray Core از: $DOWNLOAD_URL"
+              TEMP_DIR="/tmp/xray_install_$$"
+              mkdir -p "$TEMP_DIR"
+              if curl -sL "$DOWNLOAD_URL" | unzip -q -o -d "$TEMP_DIR"; then
+                  echo "[+] دانلود و استخراج با موفقیت انجام شد."
+              else
+                  echo "[!] خطا در دانلود یا استخراج Xray Core."
+                  rm -rf "$TEMP_DIR"
+                  exit 1
+              fi
+              if [ -f "$TEMP_DIR/xray" ]; then
+                  sudo mv "$TEMP_DIR/xray" "$XRAY_BIN"
+                  sudo chmod +x "$XRAY_BIN"
+                  echo "[+] Xray Core در $XRAY_BIN نصب شد و قابل اجرا است."
+              else
+                  echo "[!] فایل اجرایی 'xray' در $TEMP_DIR یافت نشد."
+                  rm -rf "$TEMP_DIR"
+                  exit 1
+              fi
+              rm -rf "$TEMP_DIR"
+              if ! command -v "$XRAY_BIN" &> /dev/null; then
+                  echo "[!] نصب Xray Core ناموفق بود. لطفاً مسیر $XRAY_BIN را بررسی کنید."
+                  exit 1
+              fi
+          }
+
+          # === تابع برای تنظیم systemd ===
+          setup_systemd() {
+              echo "[*] تنظیم سرویس systemd برای $SERVICE_NAME..."
+              SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
+              sudo tee "$SERVICE_FILE" > /dev/null <<EOF
+          [Unit]
+          Description=Xray Service (VLESS + WS/gRPC)
+          After=network.target
+
+          [Service]
+          User=root
+          Group=root
+          Type=simple
+          Restart=on-failure
+          RestartSec=5s
+          ExecStart=$XRAY_BIN -config $CONFIG_FILE
+          ExecStop=/bin/kill -SIGTERM \$MAINPID
+
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+              sudo systemctl daemon-reload
+              sudo systemctl enable $SERVICE_NAME
+              echo "[+] سرویس systemd برای $SERVICE_NAME تنظیم و فعال شد."
+          }
+
+          # === اجرای اصلی اسکریپت ===
+          echo "####################################################"
+          echo "#        اسکریپت نصب و راه‌اندازی Xray            #"
+          echo "####################################################"
+          install_dependencies
+          if ! command -v "$XRAY_BIN" &> /dev/null || ! "$XRAY_BIN" version &> /dev/null; then
+              echo "[!] Xray Core یا یافت نشد یا نسخه آن نامعتبر است. در حال نصب/بروزرسانی..."
+              install_xray
+          else
+              echo "[*] Xray Core از قبل در $XRAY_BIN موجود است. از نسخه فعلی استفاده می‌شود."
+          fi
+          sudo mkdir -p \$(dirname $CONFIG_FILE)
+          sudo mkdir -p $LOG_DIR
+          sudo chmod 755 $LOG_DIR
+          echo "[+] دایرکتوری‌ها آماده شدند."
+          echo "[*] نوشتن فایل کانفیگ در $CONFIG_FILE..."
+          echo "\$CONFIG_JSON" | sudo tee "$CONFIG_FILE" > /dev/null
+          if [ \$? -ne 0 ]; then
+              echo "[!] خطا در نوشتن فایل کانفیگ $CONFIG_FILE."
+              exit 1
+          fi
+          echo "[+] فایل کانفیگ $CONFIG_FILE با موفقیت نوشته شد."
+          setup_systemd
+          echo "[*] راه‌اندازی سرویس $SERVICE_NAME..."
+          if sudo systemctl start \$SERVICE_NAME; then
+              echo "[+] سرویس $SERVICE_NAME با موفقیت راه‌اندازی شد."
+              echo ""
+              echo "========================================================"
+              echo " تنظیمات کامل شد! 🎉"
+              echo "========================================================"
+              echo ""
+              echo "[*] وضعیت سرویس را با دستور زیر بررسی کنید:"
+              echo "    sudo systemctl status \$SERVICE_NAME"
+              echo ""
+              echo "[*] برای مشاهده لاگ‌های زنده Xray:"
+              echo "    sudo journalctl -u \$SERVICE_NAME -f"
+              echo ""
+              echo "[*] دستورات مفید دیگر:"
+              echo "    sudo systemctl stop \$SERVICE_NAME    # توقف سرویس"
+              echo "    sudo systemctl restart \$SERVICE_NAME # ری‌استارت سرویس"
+              echo "    sudo systemctl disable \$SERVICE_NAME # غیرفعال کردن اجرای خودکار هنگام بوت"
+              echo "    sudo systemctl enable \$SERVICE_NAME  # فعال کردن اجرای خودکار هنگام بوت"
+          else
+              echo "[!] خطا در راه‌اندازی سرویس $SERVICE_NAME."
+              echo "[!] لطفاً وضعیت سرویس را با دستور 'sudo systemctl status \$SERVICE_NAME' و لاگ‌ها را با 'sudo journalctl -u \$SERVICE_NAME -f' بررسی کنید."
+              exit 1
+          fi
+          exit 0
+EOF
+          chmod +x mmm.sh
+          echo "✅ mmm.sh created and made executable."
+
+      - name: Execute mmm.sh script
         run: |
-          # دانلود کردن کلودفلر (نسخه لینوکس)
-          wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-          sudo dpkg -i cloudflared-linux-amd64.deb
+          echo "🚀 Executing mmm.sh to setup and run Xray..."
+          sudo ./mmm.sh
+          # از آنجایی که mmm.sh خود سرویس را راه‌اندازی می‌کند و در پس‌زمینه نگه می‌دارد،
+          # ما اینجا فقط اجرای اولیه را انجام می‌دهیم.
+          # زمان اجرای Xray توسط systemd مدیریت می‌شود.
+          # ما یک sleep کوتاه برای اطمینان از راه‌اندازی سرویس اضافه می‌کنیم.
+          echo "   Waiting a bit for Xray service to stabilize..."
+          sleep 10 
 
-          # اجرای تونل به صورت موقت و استخراج URL
-          # این قسمت یکم جادویی کار می‌کنه چون خروجی رو توی لاگ نشون میده
-          echo "Starting Cloudflare Tunnel..."
-          cloudflared tunnel --url http://localhost:8080 --logfile tunnel.log &
-          
-          # یه چند ثانیه صبر کنیم که کلودفلر بتونه با دنیا ارتباط برقرار کنه
-          sleep 10
-          
-          # حالا بریم دنبال اون آدرس خوشگله بگردیم که به .trycloudflare.com ختم میشه
-          TUNNEL_URL=$(grep -o 'https://[-a-z0-9.]*\.trycloudflare\.com' tunnel.log | head -n 1)
-          
-          echo "------------------------------------------------"
-          echo "بفرما! آدرس تونل شما با احترام تقدیم می‌شود:"
-          echo "URL: $TUNNEL_URL"
-          echo "------------------------------------------------"
-          
-          # این مرحله رو میذارم که رانر سریع بسته نشه و بتونی تست کنی
-          # هشدار: گیت‌هاب ممکنه بعد از مدتی رانر رو به خاطر بیکار بودن ببنده
-          echo "Tunnel will be active for 15 minutes. Go wild!"
-          sleep 900
+      - name: Get Runner IP and confirm tunnel status
+        run: |
+          echo "🔍 Checking tunnel status and Runner IP..."
+          RUNNER_IP=$(curl -s https://api.ipify.org)
+          echo "   -----------------------------------------------------"
+          echo "   🚀 Temporary Xray Tunnel is LIVE!"
+          echo "   Runner IP Address: $RUNNER_IP"
+          echo "   Xray is running via systemd and configured to listen on:"
+          echo "   - Port 8888 (VLESS + WS)"
+          echo "   - Port 8889 (VLESS + gRPC)"
+          echo "   This tunnel is managed by systemd and will run until the job times out or is manually stopped."
+          echo "   -----------------------------------------------------"
+          echo "   You can check service status with: sudo systemctl status xray"
+          echo "   And logs with: sudo journalctl -u xray -f"
+
+      - name: Keep the job alive for the remaining duration
+        run: |
+          echo "⏳ Keeping the job alive for the remaining time..."
+          # محاسبه زمان باقی‌مانده تا اتمام workflow (120 دقیقه)
+          JOB_TIMEOUT_MINUTES=120
+          ELAPSED_MINUTES=$(( $(date +%s) - ${{ github.run_started_at.to_seconds }} )) # این بخش ممکن است نیاز به تنظیم دقیق تر داشته باشد
+          # یا ساده تر:
+          ELAPSED_SECONDS=$(date +%s)
+          WORKFLOW_START_EPOCH=$(date -d "${{ github.run_started_at }}" +%s)
+          ELAPSED_RUN_TIME=$((ELAPSED_SECONDS - WORKFLOW_START_EPOCH))
+          REMAINING_SECONDS=$((JOB_TIMEOUT_MINUTES * 60 - ELAPSED_RUN_TIME))
+
+          if [ $REMAINING_SECONDS -gt 0 ]; then
+            echo "   Sleeping for $REMAINING_SECONDS seconds..."
+            sleep $REMAINING_SECONDS
+          else
+            echo "   Workflow has already exceeded its time limit or is about to end."
+          fi
+
+      - name: Stop Xray service before finishing
+        if: always() # این مرحله همیشه اجرا می‌شود
+        run: |
+          echo "🛑 Stopping Xray service..."
+          sudo systemctl stop xray || echo "   Xray service was not running or already stopped."
+          echo "   Xray service stopped."
+
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "🧹 Cleaning up..."
+          # پاک کردن فایل کانفیگ و سرویس systemd
+          if [ -f "/etc/xray/config.json" ]; then
+            sudo rm -f "/etc/xray/config.json"
+            echo "   Removed temporary config file: /etc/xray/config.json"
+          fi
+          if [ -f "/etc/systemd/system/xray.service" ]; then
+            sudo systemctl disable xray --now || echo "   Failed to disable/stop xray service during cleanup."
+            sudo rm -f "/etc/systemd/system/xray.service"
+            sudo systemctl daemon-reload
+            echo "   Removed xray.service file and reloaded systemd."
+          fi
+          echo "   Cleanup complete."
