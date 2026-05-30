@@ -29,15 +29,8 @@ jobs:
               echo "✔ Xray is already there."
           fi
 
-      - name: Start a dummy local service
-        run: |
-          # اینجا یک سرور پایتونی ساده روی پورت 8080 میاریم بالا که تونل بهش وصل شه
-          echo "<h1>سلام از توی شکم گیت‌هاب!</h1>" > index.html
-          python3 -m http.server 8080 & 
-          echo "Local server started on port 8080."
-
       - name: Execute shell script
-        run: chmod +x run_tunnel.sh && ./run_tunnel.sh
+        run: chmod +x xray.sh && ./xray.sh
 
       - name: Install and Run Cloudflare Tunnel
         run: |
@@ -48,7 +41,7 @@ jobs:
           # اجرای تونل به صورت موقت و استخراج URL
           # این قسمت یکم جادویی کار می‌کنه چون خروجی رو توی لاگ نشون میده
           echo "Starting Cloudflare Tunnel..."
-          cloudflared tunnel --url http://localhost:8080 --logfile tunnel.log &
+          cloudflared tunnel --url http://localhost:8889 --logfile tunnel.log &
           
           # یه چند ثانیه صبر کنیم که کلودفلر بتونه با دنیا ارتباط برقرار کنه
           sleep 10
