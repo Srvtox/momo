@@ -56,8 +56,6 @@ jobs:
 
           type: http 
           # دامنه دلخواه (می‌تونی یه اسم بذاری، اکشن خودش یه دامنه درست می‌کنه)
-          subdomain: pubg # این رو هم به دلخواه تغییر بده
-
       - name: Keep the job alive
         run: |
           echo "Tunnel is active. Keeping the job alive..."
