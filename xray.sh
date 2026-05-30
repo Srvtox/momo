@@ -4,6 +4,17 @@
 CONFIG_FILE="xray_config.json"
 XRAY_EXECUTABLE="/usr/local/bin/xray"
 
+if [ ! -f "/usr/local/bin/xray" ]; then
+    echo "📥 Downloading Xray Core..."
+    wget -q https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
+    sudo unzip -q -o Xray-linux-64.zip -d /usr/local/bin/ xray
+    sudo chmod +x /usr/local/bin/xray
+    rm Xray-linux-64.zip
+    echo "✅ Xray Installed."
+else
+    echo "✔ Xray is already there."
+fi
+
 # --- ۲. ایجاد فایل کانفیگ JSON ---
 echo "📝 Creating Xray config file: $CONFIG_FILE..."
 cat << EOF > "$CONFIG_FILE"
