@@ -46,16 +46,32 @@ jobs:
       - name: Execute shell script
         run: chmod +x xray.sh && ./xray.sh
       # --- مرحله ۳: استفاده از LocalXpose Action ---
-      - name: Start LocalXpose Tunnel using Action
-        uses: LocalXpose/localxpose-action@v1 # استفاده از اکشن رسمی
-        with:
-          # توکن رو از خروجی مرحله get_token می‌گیریم
-          token: ${{ steps.get_token.outputs.token }} 
-          # پورت Xray که قراره تونل بشه
-          port: 8889
+      - name: Install and Run Cloudflare Tunnel
+        run: |
+          # دانلود کردن کلودفلر (نسخه لینوکس)
+          wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared-linux-amd64.deb
 
-          type: http 
-          # دامنه دلخواه (می‌تونی یه اسم بذاری، اکشن خودش یه دامنه درست می‌کنه)
+          # اجرای تونل به صورت موقت و استخراج URL
+          # این قسمت یکم جادویی کار می‌کنه چون خروجی رو توی لاگ نشون میده
+          echo "Starting Cloudflare Tunnel..."
+          cloudflared tunnel --url http://localhost:8889 --logfile tunnel.log &
+          
+          # یه چند ثانیه صبر کنیم که کلودفلر بتونه با دنیا ارتباط برقرار کنه
+          sleep 10
+          
+          # حالا بریم دنبال اون آدرس خوشگله بگردیم که به .trycloudflare.com ختم میشه
+          TUNNEL_URL=$(grep -o 'https://[-a-z0-9.]*\.trycloudflare\.com' tunnel.log | head -n 1)
+          
+          echo "------------------------------------------------"
+          echo "بفرما! آدرس تونل شما با احترام تقدیم می‌شود:"
+          echo "URL: $TUNNEL_URL"
+          echo "------------------------------------------------"
+          
+          # این مرحله رو میذارم که رانر سریع بسته نشه و بتونی تست کنی
+          # هشدار: گیت‌هاب ممکنه بعد از مدتی رانر رو به خاطر بیکار بودن ببنده
+          echo "Tunnel will be active for 15 minutes. Go wild!"
+
       - name: Keep the job alive
         run: |
           echo "Tunnel is active. Keeping the job alive..."
