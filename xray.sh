@@ -104,7 +104,7 @@ echo "Config file created successfully."
 # --- ۳. اجرای Xray ---
 echo "🚀 Starting Xray with config file: $CONFIG_FILE..."
 # اجرای Xray در پس‌زمینه
-"$XRAY_EXECUTABLE" run -config "$CONFIG_FILE" &
+$XRAY_EXECUTABLE run -config "$CONFIG_FILE" &
 
 # چند ثانیه صبر برای اطمینان از راه‌اندازی
 sleep 10
