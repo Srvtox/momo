@@ -50,8 +50,7 @@ jobs:
           echo "🚀 Configuring Nginx..."
           # یه صفحه تست ساده درست می‌کنیم
           echo "<html><body><h1>Hello from Nginx!</h1><p>This is a test page served by Nginx via LocalXpose tunnel.</p></body></html>" | sudo tee /var/www/html/index.html > /dev/null
-          # Nginx رو روی پورت 8889 تنظیم می‌کنیم
-          sudo sed -i 's/listen 80 default_server;/listen 8889 default_server;/' /etc/nginx/sites-available/default
+          # Nginx رو روی پور
           sudo systemctl restart nginx
           echo "✅ Nginx configured and started on port 8889."
 
@@ -60,7 +59,7 @@ jobs:
         uses: LocalXpose/localxpose-action@v1
         with:
           token: ${{ steps.get_token.outputs.token }}
-          port: 8889       # <-- پورت 8889 که Nginx روش هست
+          port: 80       # <-- پورت 8889 که Nginx روش هست
           type: http       # <-- نوع HTTP
           subdomain: gaming-nginx-test # <-- یه subdomain جدید
 
