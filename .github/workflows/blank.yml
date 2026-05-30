@@ -46,62 +46,17 @@ jobs:
       - name: Execute shell script
         run: chmod +x xray.sh && ./xray.sh
 
-      - name: Install LocalXpose
+      - name: Start LocalXpose Tunnel using Action
+        uses: LocalXpose/localxpose-action@v1 # استفاده از اکشن رسمی
+        with:
+           # توکن رو از خروجی مرحله get_token می‌گیریم
+           token: ${{ steps.get_token.outputs.token }} 
+           # پورت Xray که قراره تونل بشه
+           port: 8889 
+           # دامنه دلخواه (می‌تونی یه اسم بذاری، اکشن خودش یه دامنه درست می‌کنه)
+           subdomain: your-game-tunnel # این رو هم به دلخواه تغییر بده
+          # protocol: tcp # اگر لازم شد، ولی معمولاً اتوماتیک تشخیص می‌ده
+      - name: Keep the job alive
         run: |
-          echo "📦 Downloading LocalXpose..."
-          wget -q https://api.localxpose.io/api/v1/download/linux/amd64 -O localxpose.tar.gz
-          if [ $? -ne 0 ]; then
-            echo "❌ Failed to download LocalXpose. Please check the URL and network connection."
-            exit 1
-          fi
-          echo "✅ Downloaded successfully."
-
-          echo "📦 Extracting LocalXpose..."
-          tar -xzf localxpose.tar.gz -C /usr/local/bin/
-          if [ $? -ne 0 ]; then
-            echo "❌ Failed to extract LocalXpose. The downloaded file might be corrupted or the tar command failed."
-            ls -l localxpose.tar.gz
-            exit 1
-          fi
-          
-          # مدیریت پوشه احتمالی
-          if [ -d "/usr/local/bin/localxpose" ]; then
-            echo "Moving localxpose executable from directory..."
-            mv /usr/local/bin/localxpose /usr/local/bin/localxpose_temp
-            rm -rf /usr/local/bin/localxpose
-            mv /usr/local/bin/localxpose_temp /usr/local/bin/localxpose
-          fi
-          
-          if [ ! -f "/usr/local/bin/localxpose" ]; then
-             echo "❌ LocalXpose executable not found at /usr/local/bin/localxpose after extraction."
-             exit 1
-          fi
-          
-          rm localxpose.tar.gz 
-          echo "✅ LocalXpose installed and verified at /usr/local/bin/localxpose."
-
-      - name: Login to LocalXpose
-        run: |
-          echo "🔑 Logging in to LocalXpose..."
-          echo "${{ steps.get_token.outputs.token }}" | /usr/local/bin/localxpose login --token -
-          if [ $? -ne 0 ]; then
-            echo "❌ Failed to login to LocalXpose. Please check your LOCALXPOSE_TOKEN."
-            exit 1
-          fi
-          echo "✅ Logged in to LocalXpose."
-
-      # --- مرحله ۴: اجرای تونل LocalXpose برای Xray ---
-      - name: Run LocalXpose Tunnel for Xray
-        run: |
-          echo "🚀 Starting LocalXpose tunnel for VLESS TCP (port 8889)..."
-          TUNNEL_COMMAND="/usr/local/bin/localxpose tunnel tcp --hostname your-game-domain.com --to 127.0.0.1:8889"
-          echo "Executing: $TUNNEL_COMMAND"
-          $TUNNEL_COMMAND &
-          sleep 15 
-          echo "--------------------------------------------------------------"
-          echo "Tunnel command executed. Check your LocalXpose dashboard or"
-          echo "try accessing your chosen hostname (e.g., your-game-domain.com.auto.trylocalxpose.com if auto-assigned)."
-          echo "The tunnel targets 127.0.0.1:8889 (Xray VLESS TCP)."
-          echo "--------------------------------------------------------------"
-          echo "Keeping the job alive to maintain the tunnel..."
+          echo "Tunnel is active. Keeping the job alive..."
           while true; do sleep 3600; done
