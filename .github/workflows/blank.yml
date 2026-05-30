@@ -21,7 +21,7 @@ jobs:
               echo "📥 Downloading Xray Core..."
               wget -q https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
               sudo unzip -q -o Xray-linux-64.zip -d /usr/local/bin/xray
-              sudo chmod +x /usr/local/bin/xray
+              sudo chmod +x /usr/local/bin/xray/xray
               ls -al /usr/local/bin/xray
               rm Xray-linux-64.zip
               echo "✅ Xray Installed."
