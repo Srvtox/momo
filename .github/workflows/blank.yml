@@ -41,7 +41,7 @@ jobs:
           # اجرای تونل به صورت موقت و استخراج URL
           # این قسمت یکم جادویی کار می‌کنه چون خروجی رو توی لاگ نشون میده
           echo "Starting Cloudflare Tunnel..."
-          cloudflared tunnel --url http://localhost:8889 --logfile tunnel.log &
+          cloudflared tunnel --url http://localhost:8888 --logfile tunnel.log &
           
           # یه چند ثانیه صبر کنیم که کلودفلر بتونه با دنیا ارتباط برقرار کنه
           sleep 10
