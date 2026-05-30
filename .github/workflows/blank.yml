@@ -267,7 +267,7 @@ jobs:
               exit 1
           fi
           exit 0
-EOF
+          EOF
           chmod +x mmm.sh
           echo "✅ mmm.sh created and made executable."
 
