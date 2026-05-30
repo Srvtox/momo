@@ -34,17 +34,34 @@ jobs:
 
       - name: Install and Run Cloudflare Tunnel
         run: |
-          curl -fsSL https://tailscale.com/install.sh | sh
-          sudo tailscale up
-          tailscale ip -4
+           # دانلود کردن کلودفلر (نسخه لینوکس)
+           wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+           sudo dpkg -i cloudflared-linux-amd64.deb
+
+           # اجرای تونل به صورت موقت و استخراج URL
+           # این قسمت یکم جادویی کار می‌کنه چون خروجی رو توی لاگ نشون میده
+            echo "Starting Cloudflare Tunnel..."
+            cloudflared tunnel --url http://localhost:8888 --logfile tunnel.log &
+          
+           # یه چند ثانیه صبر کنیم که کلودفلر بتونه با دنیا ارتباط برقرار کنه
+           sleep 10
+          
+           # حالا بریم دنبال اون آدرس خوشگله بگردیم که به .trycloudflare.com ختم میشه
+           TUNNEL_URL=$(grep -o 'https://[-a-z0-9.]*\.trycloudflare\.com' tunnel.log | head -n 1)
+          
+           echo "------------------------------------------------"
+           echo "بفرما! آدرس تونل شما با احترام تقدیم می‌شود:"
+           echo "URL: $TUNNEL_URL"
+           echo "------------------------------------------------"
+
 
          
-          TOTAL_TIME=$((5 * 60 * 60))   # 5 ساعت به ثانیه
-          INTERVAL=300                 # 5 دقیقه به ثانیه
-          elapsed=0
-          while [ $elapsed -lt $TOTAL_TIME ]; do
+           TOTAL_TIME=$((5 * 60 * 60))   # 5 ساعت به ثانیه
+           INTERVAL=300                 # 5 دقیقه به ثانیه
+           elapsed=0
+           while [ $elapsed -lt $TOTAL_TIME ]; do
              echo "Tunnel is alive and kicking! ⏳ Elapsed minutes: $((elapsed / 60)) / 300"
              sleep $INTERVAL
-          elapsed=$((elapsed + INTERVAL))
-          done
+           elapsed=$((elapsed + INTERVAL))
+           done
 
