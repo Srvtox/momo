@@ -1,4 +1,4 @@
-name: Gaming Tunnel Setup
+name: Gaming Tunnel Setup (Pinggy)
 
 on:
   workflow_dispatch:
@@ -6,67 +6,94 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # --- مرحله ۱: دریافت توکن LocalXpose از Secrets ---
-      - name: Get LocalXpose Token
-        id: get_token
-        env:
-          LOCALXPOSE_TOKEN_SECRET: ${{ secrets.LOCALXPOSE_TOKEN }}
-        run: |
-          if [ -z "$LOCALXPOSE_TOKEN_SECRET" ]; then
-            echo "❌ Error: LOCALXPOSE_TOKEN secret is not set. Please configure it in GitHub repository secrets."
-            exit 1
-          fi
-          echo "✅ LocalXpose Token received."
-          echo "::set-output name=token::$LOCALXPOSE_TOKEN_SECRET"
-
       - name: Install dependencies and Xray
         run: |
-          echo "📦 Installing dependencies (unzip, wget)..."
-          sudo apt update && sudo apt install -y unzip wget nginx > /dev/null 2>&1 # Nginx اضافه شد
+          set -e
+          echo "📦 Installing dependencies..."
+          sudo apt-get update -y
+          sudo apt-get install -y unzip wget openssh-client curl
 
-          # --- ۲. نصب Xray (نسخه 64 بیتی بهینه) ---
+          # --- نصب Xray ---
           if [ ! -f "/usr/local/bin/xray/xray" ]; then
-              echo "📥 Downloading Xray Core..."
-              wget -q https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
-              if [ $? -ne 0 ]; then echo "❌ Failed to download Xray Core."; exit 1; fi
-              sudo unzip -q -o Xray-linux-64.zip -d /usr/local/bin/xray
-              if [ $? -ne 0 ]; then echo "❌ Failed to unzip Xray Core."; exit 1; fi
-              sudo chmod +x /usr/local/bin/xray/xray
-              rm Xray-linux-64.zip
-              echo "✅ Xray Installed."
+            echo "📥 Downloading Xray Core..."
+            wget -q https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
+            sudo unzip -q -o Xray-linux-64.zip -d /usr/local/bin/xray
+            sudo chmod +x /usr/local/bin/xray/xray
+            rm -f Xray-linux-64.zip
+            echo "✅ Xray Installed."
           else
-              echo "✔ Xray is already there."
+            echo "✔ Xray is already there."
           fi
 
       - name: Execute shell script to configure Xray
-        run: chmod +x xray.sh && ./xray.sh # این اسکریپت باید Xray رو روی پورت 8888 با network: ws تنظیم کنه
-
-      - name: Configure and start Nginx
         run: |
-          echo "🚀 Configuring Nginx..."
-          # یه صفحه تست ساده درست می‌کنیم
-          echo "<html><body><h1>Hello from Nginx!</h1><p>This is a test page served by Nginx via LocalXpose tunnel.</p></body></html>" | sudo tee /var/www/html/index.html > /dev/null
-          # Nginx رو روی پور
-          sudo systemctl restart nginx
-          echo "✅ Nginx configured and started on port 8889."
+          set -e
+          chmod +x xray.sh
+          ./xray.sh
+          echo "✅ xray.sh executed."
 
-      # --- مرحله ۳: استفاده از LocalXpose Action ---
-      - name: Start LocalXpose Tunnel using Action
-        uses: LocalXpose/localxpose-action@v1
-        with:
-          token: ${{ steps.get_token.outputs.token }}
-          port: 8888       # <-- پورت 8889 که Nginx روش هست
-          type: http       # <-- نوع HTTP
-
-      - name: Run LocalXpose manually
+      - name: Show runner public IP (for logs)
         run: |
-          echo "🚀 Running LocalXpose manually..."
-          /opt/hostedtoolcache/localxpose/latest/x64/loclx tunnel http --to=80 --subdomain=my-manual-nginx-test
-          echo "LocalXpose command executed. Check the output above for the tunnel URL."
+          echo "================ RUNNER INFO ================"
+          echo -n "Runner public IP: "
+          curl -s https://api.ipify.org || true
+          echo
+          echo "============================================"
+
+      # --- Pinggy tunnel (بدون نصب کلاینت) ---
+      # این دستور یک تونل روی پورت 8888 (لوکال) می‌سازد و Pinggy یک URL عمومی می‌دهد.
+      - name: Start Pinggy Tunnel (extract public URL)
+        id: pinggy
+        run: |
+          set -e
+
+          echo "🚀 Starting Pinggy tunnel to localhost:8888 ..."
+          echo "NOTE: if tunnel reconnects, URL may change."
+
+          # Pinggy خروجی می‌دهد؛ ما در فایل ذخیره می‌کنیم تا URL را استخراج کنیم
+          # -o StrictHostKeyChecking=no برای اینکه در GH Actions گیر نکند
+          # -R0 یعنی خودش یک پورت/دامنه آزاد می‌دهد
+          (ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+              -p 443 -T -R0:localhost:8888 free.pinggy.io | tee pinggy.log) &
+
+          # چند ثانیه صبر می‌کنیم تا URL چاپ شود
+          for i in $(seq 1 30); do
+            if grep -Eo 'https?://[^ ]+' pinggy.log | head -n 1 > pinggy_url.txt; then
+              break
+            fi
+            sleep 1
+          done
+
+          echo "--------------- PINGGY LOG (head) ---------------"
+          head -n 80 pinggy.log || true
+          echo "-------------------------------------------------"
+
+          if [ ! -s pinggy_url.txt ]; then
+            echo "❌ Could not detect Pinggy public URL from logs."
+            echo "Full log so far:"
+            cat pinggy.log || true
+            exit 1
+          fi
+
+          PINGGY_URL=$(cat pinggy_url.txt | tr -d '\r\n')
+          echo "✅ Pinggy Public URL: $PINGGY_URL"
+          echo "pinggy_url=$PINGGY_URL" >> $GITHUB_OUTPUT
+
+      - name: Print connection summary
+        run: |
+          echo "================ SUMMARY ================"
+          echo "Pinggy URL: ${{ steps.pinggy.outputs.pinggy_url }}"
+          echo "Xray Local: 127.0.0.1:8888"
+          echo "If your Xray is WS on path /ws, try:"
+          echo "${{ steps.pinggy.outputs.pinggy_url }}/ws"
+          echo "======================================="
+
       - name: Keep the job alive
         run: |
           echo "Tunnel should be active. Keeping the job alive..."
