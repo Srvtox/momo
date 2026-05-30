@@ -1,0 +1,70 @@
+name: Gaming Tunnel Setup
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # --- مرحله ۱: دریافت توکن LocalXpose از Secrets ---
+      - name: Get LocalXpose Token
+        id: get_token
+        env:
+          LOCALXPOSE_TOKEN_SECRET: ${{ secrets.LOCALXPOSE_TOKEN }}
+        run: |
+          if [ -z "$LOCALXPOSE_TOKEN_SECRET" ]; then
+            echo "❌ Error: LOCALXPOSE_TOKEN secret is not set. Please configure it in GitHub repository secrets."
+            exit 1
+          fi
+          echo "✅ LocalXpose Token received."
+          echo "::set-output name=token::$LOCALXPOSE_TOKEN_SECRET"
+
+      - name: Install dependencies and Xray
+        run: |
+          echo "📦 Installing dependencies (unzip, wget)..."
+          sudo apt update && sudo apt install -y unzip wget nginx > /dev/null 2>&1 # Nginx اضافه شد
+
+          # --- ۲. نصب Xray (نسخه 64 بیتی بهینه) ---
+          if [ ! -f "/usr/local/bin/xray/xray" ]; then
+              echo "📥 Downloading Xray Core..."
+              wget -q https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
+              if [ $? -ne 0 ]; then echo "❌ Failed to download Xray Core."; exit 1; fi
+              sudo unzip -q -o Xray-linux-64.zip -d /usr/local/bin/xray
+              if [ $? -ne 0 ]; then echo "❌ Failed to unzip Xray Core."; exit 1; fi
+              sudo chmod +x /usr/local/bin/xray/xray
+              rm Xray-linux-64.zip
+              echo "✅ Xray Installed."
+          else
+              echo "✔ Xray is already there."
+          fi
+
+      - name: Execute shell script to configure Xray
+        run: chmod +x xray.sh && ./xray.sh # این اسکریپت باید Xray رو روی پورت 8888 با network: ws تنظیم کنه
+
+      - name: Configure and start Nginx
+        run: |
+          echo "🚀 Configuring Nginx..."
+          # یه صفحه تست ساده درست می‌کنیم
+          echo "<html><body><h1>Hello from Nginx!</h1><p>This is a test page served by Nginx via LocalXpose tunnel.</p></body></html>" | sudo tee /var/www/html/index.html > /dev/null
+          # Nginx رو روی پورت 8889 تنظیم می‌کنیم
+          sudo sed -i 's/listen 80 default_server;/listen 8889 default_server;/' /etc/nginx/sites-available/default
+          sudo systemctl restart nginx
+          echo "✅ Nginx configured and started on port 8889."
+
+      # --- مرحله ۳: استفاده از LocalXpose Action ---
+      - name: Start LocalXpose Tunnel using Action
+        uses: LocalXpose/localxpose-action@v1
+        with:
+          token: ${{ steps.get_token.outputs.token }}
+          port: 8889       # <-- پورت 8889 که Nginx روش هست
+          type: http       # <-- نوع HTTP
+          subdomain: gaming-nginx-test # <-- یه subdomain جدید
+
+      - name: Keep the job alive
+        run: |
+          echo "Tunnel should be active. Keeping the job alive..."
+          while true; do sleep 3600; done
