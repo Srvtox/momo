@@ -45,17 +45,19 @@ jobs:
 
       - name: Execute shell script
         run: chmod +x xray.sh && ./xray.sh
-
+      # --- مرحله ۳: استفاده از LocalXpose Action ---
       - name: Start LocalXpose Tunnel using Action
         uses: LocalXpose/localxpose-action@v1 # استفاده از اکشن رسمی
         with:
-           # توکن رو از خروجی مرحله get_token می‌گیریم
-           token: ${{ steps.get_token.outputs.token }} 
-           # پورت Xray که قراره تونل بشه
-           port: 8889 
-           # دامنه دلخواه (می‌تونی یه اسم بذاری، اکشن خودش یه دامنه درست می‌کنه)
-           subdomain: your-game-tunnel # این رو هم به دلخواه تغییر بده
-          # protocol: tcp # اگر لازم شد، ولی معمولاً اتوماتیک تشخیص می‌ده
+          # توکن رو از خروجی مرحله get_token می‌گیریم
+          token: ${{ steps.get_token.outputs.token }} 
+          # پورت Xray که قراره تونل بشه
+          port: 8889 
+          # پروتکل رو به TCP تغییر می‌دیم
+          protocol: tcp 
+          # دامنه دلخواه (می‌تونی یه اسم بذاری، اکشن خودش یه دامنه درست می‌کنه)
+          subdomain: pubg # این رو هم به دلخواه تغییر بده
+
       - name: Keep the job alive
         run: |
           echo "Tunnel is active. Keeping the job alive..."
