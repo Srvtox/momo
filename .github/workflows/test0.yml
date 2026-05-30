@@ -1,0 +1,98 @@
+name: Xray WS via localhost.run
+
+on:
+  workflow_dispatch:
+
+jobs:
+  tunnel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y wget unzip curl openssh-client
+
+      - name: Download and install Xray
+        run: |
+          wget -q https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
+          unzip -q Xray-linux-64.zip -d xray-bin
+          chmod +x xray-bin/xray
+          ./xray-bin/xray version
+
+      - name: Create Xray config
+        run: |
+          cat > config.json << 'EOF'
+          {
+            "log": {
+              "loglevel": "warning"
+            },
+            "inbounds": [
+              {
+                "port": 8888,
+                "listen": "127.0.0.1",
+                "protocol": "vless",
+                "settings": {
+                  "clients": [
+                    {
+                      "id": "11111111-1111-1111-1111-111111111111",
+                      "level": 0
+                    }
+                  ],
+                  "decryption": "none"
+                },
+                "streamSettings": {
+                  "network": "ws",
+                  "security": "none",
+                  "wsSettings": {
+                    "path": "/ray"
+                  }
+                }
+              }
+            ],
+            "outbounds": [
+              {
+                "protocol": "freedom"
+              }
+            ]
+          }
+          EOF
+
+      - name: Start Xray
+        run: |
+          nohup ./xray-bin/xray run -c config.json > xray.log 2>&1 &
+          sleep 3
+          echo "=== Xray log ==="
+          cat xray.log || true
+          ss -tulpen | grep 8888 || true
+
+      - name: Start localhost.run tunnel for Xray WS
+        run: |
+          echo "🚀 Starting localhost.run tunnel for port 8888..."
+          nohup ssh \
+            -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=30 \
+            -o ExitOnForwardFailure=yes \
+            -R 80:localhost:8888 \
+            nokey@localhost.run > tunnel.log 2>&1 &
+          sleep 12
+          echo "=== Tunnel log ==="
+          cat tunnel.log || true
+
+      - name: Extract possible URL
+        run: |
+          echo "=== Possible public URLs ==="
+          grep -Eo 'https?://[^ ]+' tunnel.log | sort -u || true
+          echo "=== Raw tunnel hints ==="
+          grep -Ei 'localhost.run|address|connected|tunneled|https|open' tunnel.log || true
+
+      - name: Keep alive
+        run: |
+          echo "Tunnel should be active. Keeping workflow alive..."
+          while true; do
+            sleep 300
+          done
